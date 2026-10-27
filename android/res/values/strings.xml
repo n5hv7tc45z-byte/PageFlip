@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">翻页器</string>
+    <string name="acc_desc">在锁屏状态下拦截手机音量键，把「音量上 / 音量下」转换为电脑的「上一页 / 下一页」。本服务不读取屏幕内容、不记录输入、不收集任何数据。</string>
+</resources>

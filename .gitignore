@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# 运行时生成：配对码（每个用户本机不同，不应进仓库）
+.pairing
+
+# Android 构建产物
+android/build/
+android/PageFlip.apk.idsig
+
+# 调试签名（正式发布请换成自己的 release keystore）
+android/debug.keystore
+*.keystore
+*.jks
+*.p12
+
+# 本机环境与凭据
+.env
+.env.*
+!.env.example
+
+# IDE / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# WorkBuddy 本地数据
+.workbuddy/

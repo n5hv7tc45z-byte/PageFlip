@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0d13">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>翻页器</title>
+<style>
+  :root{
+    --bg:#0a0d13;
+    --panel:#111725;
+    --line:rgba(255,255,255,.08);
+    --txt:#e8edf7;
+    --dim:#6b7788;
+    --accent:#4d8dff;
+    --ok:#2fbf71;
+    --warn:#ff5d5d;
+    --safe-t:env(safe-area-inset-top,0px);
+    --safe-b:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;overflow:hidden;}
+  body{
+    background:var(--bg);color:var(--txt);
+    font:500 15px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    display:flex;flex-direction:column;
+    height:100dvh;
+    user-select:none;-webkit-user-select:none;
+    touch-action:manipulation;
+    overscroll-behavior:none;
+  }
+
+  /* ---------- 顶部状态条 ---------- */
+  header{
+    flex:0 0 auto;display:flex;align-items:center;gap:10px;
+    padding:calc(var(--safe-t) + 12px) 18px 12px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(255,255,255,.03),transparent);
+  }
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--dim);transition:.3s;flex:0 0 auto;}
+  .dot.on{background:var(--ok);box-shadow:0 0 10px rgba(47,191,113,.65);}
+  .dot.off{background:var(--warn);box-shadow:0 0 10px rgba(255,93,93,.6);}
+  .brand{font-size:13px;font-weight:600;letter-spacing:.06em;color:var(--dim);}
+  .stat{margin-left:auto;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums;letter-spacing:.02em;}
+  .stat b{color:var(--txt);font-weight:600;}
+  .gear{
+    flex:0 0 auto;width:34px;height:34px;margin-left:6px;
+    border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.03);
+    color:var(--dim);font-size:16px;line-height:1;display:grid;place-items:center;
+    cursor:pointer;transition:.2s;
+  }
+  .gear:active{background:rgba(255,255,255,.1);color:var(--txt);}
+
+  /* ---------- 两块触控区 ---------- */
+  main{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;}
+
+  .pad{
+    position:relative;flex:1 1 50%;min-height:0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    cursor:pointer;transition:background .12s ease,transform .12s ease;
+    overflow:hidden;
+  }
+  .pad::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(circle at 50% 50%,rgba(77,141,255,.16),transparent 62%);
+    opacity:0;transition:opacity .15s;
+  }
+  .pad.pressed::after{opacity:1;}
+  .pad.pressed{background:rgba(77,141,255,.05);}
+
+  .pad .glyph{
+    font-size:clamp(52px,16vw,80px);line-height:1;
+    color:rgba(232,237,247,.24);
+    transition:transform .16s cubic-bezier(.34,1.56,.64,1),color .16s;
+    font-weight:300;
+  }
+  .pad.pressed .glyph{transform:scale(.88);color:rgba(232,237,247,.55);}
+  .pad .label{font-size:16px;letter-spacing:.14em;color:#8b98ab;font-weight:600;transition:color .16s;}
+  .pad.pressed .label{color:var(--txt);}
+  .pad .hint{font-size:11px;letter-spacing:.08em;color:rgba(107,119,136,.55);}
+
+  #prev{border-bottom:1px solid var(--line);}
+
+  /* ---------- 中间细分隔 ---------- */
+  .seam{
+    position:absolute;left:50%;top:0;transform:translate(-50%,-50%);
+    display:flex;align-items:center;gap:8px;pointer-events:none;
+  }
+  .seam i{width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,.16);}
+
+  /* ---------- 底部动作抽屉 ---------- */
+  .sheet{
+    position:fixed;left:0;right:0;bottom:0;z-index:30;
+    background:var(--panel);border-top:1px solid var(--line);
+    border-radius:20px 20px 0 0;
+    padding:18px 18px calc(var(--safe-b) + 22px);
+    transform:translateY(105%);transition:transform .28s cubic-bezier(.32,.72,0,1);
+    box-shadow:0 -12px 40px rgba(0,0,0,.55);
+  }
+  .sheet.open{transform:translateY(0);}
+  .sheet h4{margin:0 0 14px;font-size:12px;letter-spacing:.14em;color:var(--dim);font-weight:600;}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .btn{
+    padding:14px 8px;border:1px solid var(--line);border-radius:12px;
+    background:rgba(255,255,255,.03);color:var(--txt);
+    font-size:13px;font-weight:500;text-align:center;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:6px;transition:.15s;
+  }
+  .btn:active{background:rgba(77,141,255,.16);border-color:rgba(77,141,255,.5);transform:scale(.97);}
+  .btn span{font-size:17px;line-height:1;color:var(--dim);}
+  .mask{position:fixed;inset:0;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:.28s;z-index:20;}
+  .mask.open{opacity:1;pointer-events:auto;}
+
+  /* ---------- 轻提示 ---------- */
+  #toast{
+    position:fixed;left:50%;bottom:calc(var(--safe-b) + 30px);transform:translate(-50%,14px);
+    background:rgba(20,26,38,.94);border:1px solid var(--line);
+    padding:9px 16px;border-radius:100px;font-size:13px;color:var(--txt);
+    opacity:0;pointer-events:none;transition:.22s;z-index:40;white-space:nowrap;
+  }
+  #toast.show{opacity:1;transform:translate(-50%,0);}
+
+  /* ---------- 配对码闸门 ---------- */
+  .gate{
+    position:fixed;inset:0;z-index:60;background:rgba(6,9,14,.96);
+    display:none;flex-direction:column;align-items:center;justify-content:center;
+    padding:32px;gap:14px;backdrop-filter:blur(8px);
+  }
+  .gate.show{display:flex;}
+  .gate .t{font-size:17px;font-weight:600;color:var(--txt);letter-spacing:.08em;}
+  .gate .s{font-size:12.5px;color:var(--dim);text-align:center;line-height:1.7;}
+  .gate input{
+    width:200px;padding:14px;border-radius:12px;border:1px solid var(--line);
+    background:var(--panel);color:var(--txt);font:600 24px/1 ui-monospace,Consolas,monospace;
+    text-align:center;letter-spacing:.34em;outline:none;
+  }
+  .gate input::placeholder{font-size:13px;letter-spacing:.02em;color:#3E4A5C;}
+  .gate button{
+    width:200px;padding:13px;border:0;border-radius:12px;background:var(--accent);
+    color:#fff;font-size:15px;font-weight:600;cursor:pointer;
+  }
+  .gate button:active{transform:scale(.98);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="dot" id="dot"></div>
+  <div class="brand">翻页器</div>
+  <div class="stat">已翻 <b id="cnt">0</b> 次</div>
+  <div class="gear" id="gear">···</div>
+</header>
+
+<main>
+  <div class="pad" id="prev" data-act="prev">
+    <div class="glyph">↑</div>
+    <div class="label">上一页</div>
+    <div class="hint">长按连续翻</div>
+    <div class="seam"><i></i><i></i><i></i></div>
+  </div>
+  <div class="pad" id="next" data-act="next">
+    <div class="glyph">↓</div>
+    <div class="label">下一页</div>
+    <div class="hint">长按连续翻</div>
+  </div>
+</main>
+
+<div class="mask" id="mask"></div>
+<div class="sheet" id="sheet">
+  <h4>放映控制</h4>
+  <div class="grid">
+    <div class="btn" data-act="start"><span>▶</span>开始放映</div>
+    <div class="btn" data-act="stop"><span>■</span>退出放映</div>
+    <div class="btn" data-act="black"><span>◐</span>黑屏</div>
+    <div class="btn" data-act="first"><span>⤒</span>第一页</div>
+    <div class="btn" data-act="last"><span>⤓</span>最后一页</div>
+    <div class="btn" data-act="enter"><span>⏎</span>回车</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div class="gate" id="gate">
+  <div class="t">需要配对码</div>
+  <div class="s">在电脑控制台的二维码下方可以看到<br>6 位数字，输入一次即可记住</div>
+  <input id="gate-input" type="tel" inputmode="numeric" maxlength="6" placeholder="6 位数字">
+  <button id="gate-btn">连 接</button>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var dot = document.getElementById('dot');
+  var cntEl = document.getElementById('cnt');
+  var sheet = document.getElementById('sheet');
+  var mask = document.getElementById('mask');
+  var toastEl = document.getElementById('toast');
+
+  var total = 0;
+  var online = false;
+  var toastTimer = null;
+  var lastFail = null;
+  var inFlight = 0;
+
+  // ---- 配对码 ---------------------------------------------------
+  var TOKEN = (function () {
+    var m = /[?&]t=([^&]+)/.exec(location.search);
+    if (m) {
+      var t = decodeURIComponent(m[1]);
+      try { localStorage.setItem('pf_token', t); } catch (e) {}
+      try { history.replaceState(null, '', location.pathname); } catch (e) {}
+      return t;
+    }
+    try { return localStorage.getItem('pf_token') || ''; } catch (e) { return ''; }
+  })();
+
+  var gate = document.getElementById('gate');
+  var gateInput = document.getElementById('gate-input');
+  var gateBtn = document.getElementById('gate-btn');
+
+  function showGate() {
+    if (gate) gate.classList.add('show');
+  }
+
+  function saveToken(t) {
+    TOKEN = t;
+    try { localStorage.setItem('pf_token', t); } catch (e) {}
+    if (gate) gate.classList.remove('show');
+  }
+
+  // 整个请求（含读取 body）都有期限：到点 abort 会让 r.json() 一起失败，
+  // 否则拿到响应头就清计时器，正文卡住时名额会被永久占满
+  function fetchT(url, opts, ms) {
+    opts = opts || {};
+    if (typeof AbortController === 'undefined') {
+      return fetch(url, opts).then(function (r) {
+        return r.json().then(function (d) { return { res: r, data: d }; });
+      });
+    }
+    var ctl = new AbortController();
+    var timer = setTimeout(function () { ctl.abort(); }, ms);
+    opts.signal = ctl.signal;
+    return fetch(url, opts).then(function (r) {
+      return r.json().then(function (d) {
+        clearTimeout(timer);
+        return { res: r, data: d };
+      }, function (e) {
+        clearTimeout(timer);
+        throw e;
+      });
+    }, function (e) {
+      clearTimeout(timer);
+      throw e;
+    });
+  }
+
+  if (gateBtn) {
+    gateBtn.addEventListener('click', function () {
+      var v = (gateInput.value || '').replace(/\D/g, '');
+      if (v.length < 4) {
+        toast('请输入 6 位配对码');
+        return;
+      }
+      gateBtn.disabled = true;
+      gateBtn.textContent = '验证中…';
+      fetchT('/api/verify?t=' + encodeURIComponent(v), {}, 2500)
+        .then(function (o) {
+          if (!o.res.ok || !o.data || !o.data.ok) throw new Error('bad');
+          saveToken(v);
+          total = 0;
+          cntEl.textContent = '0';
+          poll();
+        })
+        .catch(function () {
+          toast('配对码不对，再看一眼电脑上显示的数字');
+        })
+        .then(function () {
+          gateBtn.disabled = false;
+          gateBtn.textContent = '连 接';
+        });
+    });
+  }
+  if (gateInput) {
+    gateInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && gateBtn) gateBtn.click();
+    });
+  }
+  if (!TOKEN) showGate();
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 1400);
+  }
+
+  function setOnline(ok) {
+    if (ok === online) return;
+    online = ok;
+    dot.className = 'dot ' + (ok ? 'on' : 'off');
+    if (!ok) toast('与电脑断开，检查是否同一 WiFi');
+  }
+
+  function buzz(ms) {
+    if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} }
+  }
+
+  // ---- 发送指令 -------------------------------------------------
+  function fire(action, opts) {
+    opts = opts || {};
+    var repeat = opts.repeat || 1;
+    if (!opts.silent) buzz(repeat > 1 ? 6 : 11);
+
+    // 背压：网络卡顿时不再堆积请求，避免恢复后连翻一串旧页
+    if (inFlight >= 3) return Promise.resolve();
+    inFlight++;
+
+    return fetchT('/api/cmd', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-PF-Token': TOKEN },
+      body: JSON.stringify({ action: action, repeat: repeat }),
+      cache: 'no-store'
+    }, 2500).then(function (o) {
+      var r = o.res, d = o.data;
+      if (r.status === 403) {
+        showGate();
+        setOnline(false);
+        throw new Error('auth');
+      }
+      if (!r.ok) throw new Error('http ' + r.status);
+      // 服务端注入失败会返回 HTTP 200 + ok:false，不能当成功
+      if (!d || d.ok === false) {
+        setOnline(false);
+        throw new Error('denied');
+      }
+      setOnline(true);
+      lastFail = null;
+      if (action === 'prev' || action === 'next') {
+        total += 1;
+        cntEl.textContent = total;
+      }
+      return d;
+    }).catch(function (e) {
+      lastFail = e;
+      if (!e || e.message !== 'auth') setOnline(false);
+    }).then(function () {
+      inFlight--;
+    });
+  }
+
+  // ---- 触控区：点按 + 长按连发 ----------------------------------
+  var padStops = [];
+
+  function stopAllPads() {
+    for (var i = 0; i < padStops.length; i++) {
+      try { padStops[i](); } catch (e) {}
+    }
+  }
+
+  function bindPad(el) {
+    var action = el.dataset.act;
+    var holdTimer = null, repeatTimer = null, pressed = false;
+
+    function start(e) {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      if (pressed) return;
+      pressed = true;
+      el.classList.add('pressed');
+
+      fire(action);
+
+      holdTimer = setTimeout(function () {
+        repeatTimer = setInterval(function () {
+          if (pressed) fire(action, { silent: true });
+        }, 190);
+      }, 430);
+    }
+
+    function stop() {
+      if (!pressed) return;
+      pressed = false;
+      el.classList.remove('pressed');
+      clearTimeout(holdTimer);
+      clearInterval(repeatTimer);
+      holdTimer = repeatTimer = null;
+    }
+
+    padStops.push(stop);
+    el.addEventListener('pointerdown', start);
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (t) {
+      el.addEventListener(t, stop);
+    });
+    el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  }
+
+  document.querySelectorAll('.pad').forEach(bindPad);
+
+  // ---- 抽屉 -----------------------------------------------------
+  function openSheet() { sheet.classList.add('open'); mask.classList.add('open'); }
+  function closeSheet() { sheet.classList.remove('open'); mask.classList.remove('open'); }
+
+  document.getElementById('gear').addEventListener('click', openSheet);
+  mask.addEventListener('click', closeSheet);
+
+  document.querySelectorAll('.btn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      fire(b.dataset.act);
+      toast(b.textContent.trim());
+      closeSheet();
+    });
+  });
+
+  // ---- 状态轮询 -------------------------------------------------
+  function poll() {
+    fetchT('/api/info', { cache: 'no-store', headers: { 'X-PF-Token': TOKEN } }, 2500)
+      .then(function (o) {
+        var d = o.data;
+        setOnline(true);
+        if (d && typeof d.total === 'number' && d.total > 0) {
+          total = d.total;
+          cntEl.textContent = total;
+        }
+      })
+      .catch(function () { setOnline(false); });
+  }
+  poll();
+  setInterval(function () {
+    // 页面不可见时不轮询，减少后台耗电
+    if (document.visibilityState === 'visible') poll();
+  }, 4000);
+
+  // ---- 屏幕常亮（http 下多数浏览器会拒绝，失败无妨） -------------
+  var wakeLock = null;
+  function keepAwake() {
+    if (!('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(function (l) { wakeLock = l; }).catch(function () {});
+  }
+  keepAwake();
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') {
+      stopAllPads();          // 页面切走时立刻停止长按连发
+    } else {
+      keepAwake();
+      poll();
+    }
+  });
+  window.addEventListener('pagehide', stopAllPads);
+  window.addEventListener('blur', stopAllPads);
+
+  // ---- 防止误触缩放 ---------------------------------------------
+  document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+  document.addEventListener('dblclick', function (e) { e.preventDefault(); });
+})();
+</script>
+</body>
+</html>

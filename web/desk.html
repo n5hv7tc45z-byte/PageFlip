@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>翻页器 · 控制台</title>
+<style>
+  :root{
+    --bg:#0a0d13;--panel:#111725;--line:rgba(255,255,255,.09);
+    --txt:#e8edf7;--dim:#6b7788;--accent:#4d8dff;--ok:#2fbf71;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;min-height:100vh;background:
+      radial-gradient(900px 600px at 20% -10%,rgba(77,141,255,.13),transparent 60%),
+      var(--bg);
+    color:var(--txt);
+    font:400 14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    display:flex;align-items:center;justify-content:center;padding:32px;
+  }
+  .card{
+    width:min(440px,100%);background:rgba(17,23,37,.86);
+    border:1px solid var(--line);border-radius:20px;padding:30px 28px 26px;
+    box-shadow:0 30px 80px rgba(0,0,0,.55);backdrop-filter:blur(20px);text-align:center;
+  }
+  h1{margin:0;font-size:19px;letter-spacing:.16em;font-weight:600;}
+  .sub{margin:6px 0 22px;font-size:12px;color:var(--dim);letter-spacing:.06em;}
+
+  .qr{
+    width:200px;height:200px;margin:0 auto 16px;border-radius:14px;overflow:hidden;
+    background:#fff;display:grid;place-items:center;padding:10px;
+  }
+  .qr img{width:100%;height:100%;object-fit:contain;display:block;}
+  .qr .ph{color:#8a94a6;font-size:12px;text-align:center;padding:0 8px;line-height:1.5;}
+
+  .url{
+    font:600 16px/1.4 ui-monospace,"SF Mono",Consolas,monospace;
+    letter-spacing:.01em;color:#fff;word-break:break-all;margin-bottom:10px;
+  }
+  .copy{
+    display:inline-block;padding:8px 18px;border:1px solid var(--line);border-radius:9px;
+    background:rgba(255,255,255,.04);color:var(--txt);font-size:12.5px;cursor:pointer;transition:.15s;
+  }  .copy:hover{background:rgba(77,141,255,.14);border-color:rgba(77,141,255,.45);}
+  .copy:active{transform:scale(.97);}
+
+  .pair{
+    font:600 16px/1.4 ui-monospace,"SF Mono",Consolas,monospace;
+    letter-spacing:.3em;color:#8FB4FF;margin:12px 0 14px;padding-left:.3em;
+  }
+
+  .status{
+    margin:22px 0 0;padding-top:18px;border-top:1px solid var(--line);
+    display:flex;justify-content:space-around;font-size:12px;color:var(--dim);
+  }
+  .status b{display:block;font-size:15px;color:var(--txt);font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums;}
+
+  .tests{display:flex;gap:10px;margin-top:18px;}
+  .tests button{
+    flex:1;padding:11px;border:1px solid var(--line);border-radius:10px;
+    background:rgba(255,255,255,.03);color:var(--txt);font-size:13px;cursor:pointer;transition:.15s;
+  }
+  .tests button:hover{background:rgba(77,141,255,.14);border-color:rgba(77,141,255,.45);}
+  .tests button:active{transform:scale(.97);}
+
+  .apk{
+    display:block;margin-top:12px;padding:12px;border-radius:11px;
+    background:linear-gradient(180deg,rgba(77,141,255,.16),rgba(77,141,255,.06));
+    border:1px solid rgba(77,141,255,.32);
+    color:#cfe0ff;text-decoration:none;font-size:13px;font-weight:500;transition:.15s;
+  }
+  .apk:hover{background:rgba(77,141,255,.24);border-color:rgba(77,141,255,.55);}
+  .apk:active{transform:scale(.98);}
+
+  .tip{margin-top:16px;font-size:11.5px;color:rgba(107,119,136,.75);line-height:1.7;}
+  .tip code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;font-size:11px;}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>翻 页 器</h1>
+  <div class="sub">用手机扫描二维码，或直接输入下方网址</div>
+
+  <div class="qr" id="qr"><div class="ph">二维码生成中…</div></div>
+  <div class="url" id="url">—</div>
+  <div class="pair" id="pair">配对码 —</div>
+  <button class="copy" id="copy">复制网址</button>
+
+  <div class="status">
+    <div>状态<b id="state">连接中</b></div>
+    <div>已翻页<b id="total">0</b></div>
+    <div>按键模式<b id="mode">—</b></div>
+  </div>
+
+  <div class="tests">
+    <button data-act="prev">↑ 测试上一页</button>
+    <button data-act="next">↓ 测试下一页</button>
+  </div>
+
+  <a class="apk" id="apk" href="/apk">下载 Android 应用 · 支持音量键翻页</a>
+
+  <div class="tip">
+    手机需与本机连同一个 WiFi · 打不开请先运行「放行防火墙.bat」
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var urlEl = document.getElementById('url');
+  var qrEl = document.getElementById('qr');
+  var stateEl = document.getElementById('state');
+  var totalEl = document.getElementById('total');
+  var modeEl = document.getElementById('mode');
+  var pageUrl = '';
+  var pairToken = '';
+
+  function load() {
+    fetch('/api/info', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        stateEl.textContent = d.dry_run ? '试运行' : (d.udp ? '运行中' : '仅 HTTP');
+        stateEl.style.color = d.dry_run ? '#ffb84d' : (d.udp ? '#2fbf71' : '#ffb84d');
+        totalEl.textContent = d.total;
+        modeEl.textContent = d.mode === 'arrow' ? '↑ ↓' : (d.mode === 'space' ? 'PgUp/空格' : 'PgUp/PgDn');
+        if (!pageUrl) buildUrl(d);
+      })
+      .catch(function () { stateEl.textContent = '已断开'; stateEl.style.color = '#ff5d5d'; });
+  }
+
+  function buildUrl() {
+    var host = location.hostname;
+    var port = location.port || '80';
+    var pairEl = document.getElementById('pair');
+
+    function finish(ip) {
+      var base = 'http://' + ip + ':' + port;
+      pageUrl = pairToken ? base + '/?t=' + pairToken : base;
+      renderUrl();
+    }
+
+    // 配对码只回给本机；手机扫码时 URL 里已经带着它
+    fetch('/api/pair', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.ok) {
+          pairToken = d.token || '';
+          if (pairEl) {
+            pairEl.textContent = pairToken ? ('配对码  ' + pairToken) : '配对码 未启用';
+          }
+        } else {
+          if (pairEl) pairEl.textContent = '请在电脑本机打开此页查看配对码';
+        }
+      })
+      .catch(function () {
+        if (pairEl) pairEl.textContent = '请在电脑本机打开此页查看配对码';
+      })
+      .then(function () {
+        if (host === '127.0.0.1' || host === 'localhost') {
+          fetch('/api/lanip').then(function (r) { return r.json(); })
+            .then(function (d) { finish(d.ip); })
+            .catch(function () { finish(host); });
+        } else {
+          finish(host);
+        }
+      });
+  }
+
+  function renderUrl() {
+    urlEl.textContent = pageUrl;
+    document.title = '翻页器 · ' + pageUrl;
+    var img = document.createElement('img');
+    img.alt = '二维码';
+    img.src = '/qr.svg?u=' + encodeURIComponent(pageUrl);
+    img.onerror = function () {
+      qrEl.innerHTML = '<div class="ph">二维码生成失败<br>请手动在手机浏览器输入上方网址</div>';
+    };
+    qrEl.innerHTML = '';
+    qrEl.appendChild(img);
+  }
+
+  document.getElementById('copy').addEventListener('click', function () {
+    var btn = this;
+    var done = function () { btn.textContent = '已复制'; setTimeout(function () { btn.textContent = '复制网址'; }, 1500); };
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(pageUrl).then(done).catch(fallback);
+    } else { fallback(); }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = pageUrl; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  });
+
+  document.querySelectorAll('.tests button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      fetch('/api/cmd', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-PF-Token': pairToken },
+        body: JSON.stringify({ action: b.dataset.act })
+      }).then(function (r) {
+        if (r.status === 403) {
+          alert('配对码校验失败，请刷新页面重试');
+          return null;
+        }
+        return r.json();
+      }).then(function (d) {
+        if (d && d.ok === false) {
+          alert('电脑没有接受这次按键注入（可能是目标程序以管理员权限运行）');
+        }
+        load();
+      }).catch(function () { load(); });
+    });
+  });
+
+  load();
+  setInterval(load, 2000);
+})();
+</script>
+</body>
+</html>

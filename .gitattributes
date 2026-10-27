@@ -1,0 +1,12 @@
+# 统一换行符：仓库内存 LF，Windows 检出为 CRLF
+* text=auto
+
+# 批处理是 GBK 编码 + CRLF，按二进制处理，避免被 Git 改写编码/换行
+*.bat binary
+
+# 二进制资源
+*.apk binary
+*.jar binary
+*.png binary
+*.idsig binary
+*.keystore binary
